@@ -632,6 +632,67 @@ WLED_GLOBAL byte briT                _INIT(0);             // global brightness 
 WLED_GLOBAL byte briLast             _INIT(128);           // brightness before turned off. Used for toggle function
 WLED_GLOBAL byte whiteLast           _INIT(128);           // white channel before turned off. Used for toggle function in ir.cpp
 
+
+// Configurable input types
+#define CFGINPUT_TYPE_NONE        0         // no input type assigned - basically unused
+#define CFGINPUT_TYPE_MOMENTARY   1         // momentary input - pushbuttons and other ON/OFF input devices which have one stable state
+#define CFGINPUT_TYPE_TOGGLE      2         // toggle input - switches and other devices which have several stable states
+#define CFGINPUT_TYPE_TOUCH       3         // touch input - capacitive inputs utilizing internal touch sensor peripherals
+#define CFGINPUT_TYPE_ANALOG      4         // analog input - input devices with a continuous state change (e.g. potentiometers, voltage dividers, etc.)
+
+#define CFGINPUT_NOT_INITIALIZED  0         // input is not initialized
+#define CFGINPUT_INITIALIZED      1         // input is initialized
+
+#define CFGINPUT_NORMAL           0         // input logic level is as-is
+#define CFGINPUT_INVERTED         1         // input logic level is inverted
+
+#define CFGINPUT_PULL_NONE        0         // no pull activated
+#define CFGINPUT_PULL_UP          1         // pull-up activated
+#define CFGINPUT_PULL_DOWN        2         // pull-down activated
+#define CFGINPUT_PULL_RESERVED    3         // reserved: possibly for pull strength adjustabe GPIOs
+
+//shared variables between all configurable buttons
+class ConfigurableInput {
+  uint8_t pin;                   // GPIO pin
+
+  struct {
+    uint8_t type            :4; // CFGINPUT_TYPE_# button type
+    bool initialized        :1; // CFGINPUT_INITIALIZED if button is initialized, CFGINPUT_NOT_INITIALIZED otherwise
+    bool inverted           :1; // 1 if input logic level is inverted, 0 otherwise
+    uint8_t pullDirection   :2; // CFGINPUT_PULL_# internall pull type
+  };
+  
+  char MQTTEventTopic[10];      // MQTT topic for input event reporting, maximum 10 characters
+
+  uint8_t prevState;            // previous value for debouncing
+  unsigned long lastTransition; // last transition time for debouncing
+  unsigned long debounceTime;   // debouncing time threshold
+
+};
+
+class MomentarySwitch: public ConfigurableInput {
+  unsigned long longPressThreshold;   // minimum duration for long press
+  unsigned long doublePressInterval;  // maximum interval for double press
+  uint8_t presetEventPrimary;   // preset to call on primary event (short press for button, positive edge for simple switch, any edge for toggle switch)
+  uint8_t presetEventSecondary; // preset to call on secondary event (long press for button, negative edge for simple switch)
+};
+
+class ToggleSwitch: public ConfigurableInput  {
+  uint8_t presetEventPrimary;   // preset to call on primary event (short press for button, positive edge for simple switch, any edge for toggle switch)
+  uint8_t presetEventSecondary; // preset to call on secondary event (long press for button, negative edge for simple switch)
+  bool edgeMode;                // if true, boot-up state does not matter
+};
+
+class TouchSwitch: public ConfigurableInput  {
+  uint8_t touchThreshold;       // touch button threshold level
+};
+
+class AnalogSwitch: public ConfigurableInput  {
+  uint16_t turnOffThreshold;    // global brightness mode turnoff value
+  uint16_t filteredValue;       // IIR filtered analog value  
+  uint8_t filterCoeff;          // 0 - 100 IIR filter coefficient
+};
+
 // button
 struct Button {
   unsigned long pressedTime;        // time button was pressed
